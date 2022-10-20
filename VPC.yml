@@ -1,5 +1,8 @@
 # This CloudFormation template deploys a basic VPC / Network.
 
+#SET AWS_ACCESS_KEY_ID= "AKIAR4XI65Y3OAGJSUFC"
+#SET AWS_SECRET_ACCESS_KEY= "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"
+
 Parameters:
   NumberOfAZs:
     Type: Number
@@ -97,9 +100,8 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-      Tags:
-      - Key: Name
-        Value: Route-1
+
+        
   # Attach the public subnets to public route tables,
   # and attach the private subnets to private route tables:   
   
@@ -127,3 +129,30 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnetC
       RouteTableId: !Ref PublicRouteTable
+  
+  WebAppInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0c912173fbb7576b0
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - !Ref WebAppSecurityGroup
+
+  WebAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Join ["-", [webapp-security-group, dev]]
+      GroupDescription: "Allow HTTP/HTTPS and SSH inbound and outbound traffic"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
