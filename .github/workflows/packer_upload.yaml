@@ -25,8 +25,7 @@ jobs:
         with:
           command: validate
           arguments: -syntax-only
-          templateFile: 'aws-ubuntu-pkr.hcl'
-          workingDir: 'Packer_Template'
+          target: ./Packer_Template/aws-ubuntu-pkr.hcl
 
       # build artifact
       - name: Build Artifact
@@ -34,8 +33,7 @@ jobs:
         with:
           command: build
           arguments: "-color=false -on-error=abort"
-          templateFile: 'aws-ubuntu-pkr.hcl'
-          workingDir: 'Packer_Template'
+          target: ./Packer_Template/aws-ubuntu-pkr.hcl
         env:
           PACKER_LOG: 1
         
