@@ -17,7 +17,9 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
-
+      - with:
+          templateFile: 'aws-ubuntu-pkr.hcl'
+          workingDir: 'Packer_Template'
 
       # validate templates
       - name: Validate Template
@@ -25,7 +27,7 @@ jobs:
         with:
           command: validate
           arguments: -syntax-only
-          target: Packer_Template/aws-ubuntu-pkr.hcl
+          target: aws-ubuntu-pkr.hcl
 
       # build artifact
       - name: Build Artifact
