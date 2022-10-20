@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Packer build
-        uses:  ShadowClone-CSYE6225/packer_build_action_aws@v0.2.10
+        uses:  actions/checkout@v3
         with:
           templateFile: 'aws-ubuntu-pkr.hcl'
           workingDir: 'Packer_Template'
