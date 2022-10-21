@@ -30,7 +30,7 @@ build {
   ]
 
   provisioner "file" {
-    source      = "../Packer_Template/webapp.tar"
+    source      = "../webapp.tar"
     destination = "/tmp/webapp.tar"
   }
 
