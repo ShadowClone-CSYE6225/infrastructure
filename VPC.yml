@@ -137,6 +137,12 @@ Resources:
       InstanceType: t2.micro
       SecurityGroupIds:
         - !Ref WebAppSecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/sdc
+          Ebs:
+            VolumeSize: 50
+            VolumeType: gp2
+            DeleteOnTermination: true
 
   WebAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup

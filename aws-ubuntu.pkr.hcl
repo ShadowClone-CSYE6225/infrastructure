@@ -8,7 +8,7 @@ packer {
 }
 
 source "amazon-ebs" "ubuntu" {
-  ami_name      = "learn-packer-linux-aws"
+  ami_name      = "learn-packer-linux-aws-2"
   instance_type = "t2.micro"
   region        = "us-east-1"
   source_ami_filter {
@@ -50,6 +50,7 @@ build {
       "tar -xvf webapp.tar",
       "cd webapp",
       "npm install",
+      "sudo pm2 start ./Models/user.js",
       "sudo pm2 start index.js",
       "sudo pm2 startup systemd",
       "sudo pm2 save",
