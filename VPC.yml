@@ -80,6 +80,39 @@ Resources:
       Tags:
       - Key: Name
         Value: PUBLICSUBNETC
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]    # Get the first AZ in the list       
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet1
+  
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]    # Get the first AZ in the list       
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet2
+  
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    DependsOn: VPC
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.6.0/24
+      AvailabilityZone: !Select [ 2, !GetAZs ]    # Get the first AZ in the list       
+      Tags:
+      - Key: Name
+        Value: PrivateSubnet3
     
     # Some route tables for our subnets:
   
@@ -100,6 +133,15 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
+  
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value: Private-Route-Table
 
         
   # Attach the public subnets to public route tables,
@@ -130,10 +172,32 @@ Resources:
       SubnetId: !Ref PublicSubnetC
       RouteTableId: !Ref PublicRouteTable
   
+  PrivateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  
+  PrivateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId:
+        Ref: PrivateSubnet3
+      RouteTableId: !Ref PrivateRouteTable
+  
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0c912173fbb7576b0
+      ImageId: ami-0d9c843e49a72bb5d
       InstanceType: t2.micro
       SecurityGroupIds:
         - !Ref WebAppSecurityGroup
@@ -170,3 +234,51 @@ Resources:
           FromPort: 6969
           ToPort: 6969
           CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: Name
+        Value: ApplicationSecurityGroup
+
+  
+
+  RDSPrivateSubnetGroup:
+      Type : AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: private subnet group for RDS
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+          - !Ref PrivateSubnet3
+
+  DatabaseSecurityGroupFinal:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "postgresDatabase to delete"
+      GroupName: database
+      VpcId:
+        Ref: VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !GetAtt WebAppSecurityGroup.GroupId
+      Tags:
+        - Key: Name
+          Value: Rds-Security-Group
+
+  MyDBInstance:
+    Type: "AWS::RDS::DBInstance"
+    Properties:
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      DBName: csye6225
+      Engine: postgres
+      # EngineVersion:
+      MasterUsername: csye6225
+      MasterUserPassword: adminPratik1234
+      StorageType: gp2
+      VPCSecurityGroups: 
+        - Ref: DatabaseSecurityGroupFinal
+      DBSubnetGroupName: !Ref RDSPrivateSubnetGroup
+      Tags:
+        - Key: Name
+          Value: Rds-Postgres-Instance
