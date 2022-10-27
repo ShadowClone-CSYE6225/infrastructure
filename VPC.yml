@@ -4,6 +4,13 @@
 #SET AWS_SECRET_ACCESS_KEY= "xGH3oi+QART8b9mEdbSc9Z7ySABpNXouN8SadgbO"
 
 Parameters:
+
+  SubnetCidrBlocks: 
+    Description: "List of CIDR blocks"
+    Type: CommaDelimitedList
+    Default: "10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24, 10.0.4.0/24, 10.0.5.0/24, 10.0.6.0/24"
+
+
   NumberOfAZs:
     Type: Number
     AllowedValues:
@@ -14,8 +21,8 @@ Parameters:
     Description:  How many Availability Zones do you wish to utilize?
 
 Conditions:
-  BuildPublicB:         !Not [ !Equals [ !Ref NumberOfAZs, 1 ]] 
-  BuildPublicC:         !Equals [ !Ref NumberOfAZs, 3 ] 
+    BuildPublicB:         !Not [ !Equals [ !Ref NumberOfAZs, 1 ]] 
+    BuildPublicC:         !Equals [ !Ref NumberOfAZs, 3 ] 
 
 Resources:
   # First, a VPC:
@@ -49,11 +56,14 @@ Resources:
     DependsOn: VPC
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.1.0/24
+      CidrBlock: !Select [0, !Ref SubnetCidrBlocks]
       AvailabilityZone: !Select [ 0, !GetAZs ]    # Get the first AZ in the list       
+      MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
         Value: PUBLICSUBNETA
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
   
   
   PublicSubnetB:
@@ -62,11 +72,14 @@ Resources:
     Condition: BuildPublicB
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
+      CidrBlock: !Select [1, !Ref SubnetCidrBlocks]
       AvailabilityZone: !Select [ 1, !GetAZs ]    # Get the first AZ in the list       
+      MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
         Value: PUBLICSUBNETB
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
   
   
   PublicSubnetC:
@@ -75,44 +88,55 @@ Resources:
     Condition: BuildPublicC
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.3.0/24
+      CidrBlock: !Select [2, !Ref SubnetCidrBlocks]
       AvailabilityZone: !Select [ 2, !GetAZs ]    # Get the first AZ in the list       
+      MapPublicIpOnLaunch: true
       Tags:
       - Key: Name
         Value: PUBLICSUBNETC
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
 
   PrivateSubnet1:
     Type: AWS::EC2::Subnet
     DependsOn: VPC
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.4.0/24
+      CidrBlock: !Select [3, !Ref SubnetCidrBlocks]
+      MapPublicIpOnLaunch: false
       AvailabilityZone: !Select [ 0, !GetAZs ]    # Get the first AZ in the list       
       Tags:
       - Key: Name
         Value: PrivateSubnet1
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
   
   PrivateSubnet2:
     Type: AWS::EC2::Subnet
     DependsOn: VPC
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.5.0/24
+      CidrBlock: !Select [4, !Ref SubnetCidrBlocks]
       AvailabilityZone: !Select [ 1, !GetAZs ]    # Get the first AZ in the list       
+      MapPublicIpOnLaunch: false
       Tags:
       - Key: Name
         Value: PrivateSubnet2
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
   
   PrivateSubnet3:
     Type: AWS::EC2::Subnet
     DependsOn: VPC
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: 10.0.6.0/24
+      CidrBlock: !Select [5, !Ref SubnetCidrBlocks]
       AvailabilityZone: !Select [ 2, !GetAZs ]    # Get the first AZ in the list       
       Tags:
       - Key: Name
         Value: PrivateSubnet3
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
     
     # Some route tables for our subnets:
   
@@ -124,6 +148,20 @@ Resources:
       Tags:
       - Key: Name
         Value: RouteTable
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
+  
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId:  
+        Ref: VPC
+      Tags:
+      - Key: Name
+        Value:  PrivateRouteTableName
+      - Key: VPC Name
+        Value: !Ref AWS::StackName
+
   
   
   PublicRoute1:   # Public route table has direct routing to IGW:
@@ -134,14 +172,6 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
   
-  PrivateRouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId:  
-        Ref: VPC
-      Tags:
-      - Key: Name
-        Value: Private-Route-Table
 
         
   # Attach the public subnets to public route tables,
@@ -197,22 +227,67 @@ Resources:
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0d9c843e49a72bb5d
+      ImageId: ami-06c452d86f1777f5a
       InstanceType: t2.micro
-      SecurityGroupIds:
-        - !Ref WebAppSecurityGroup
+      NetworkInterfaces:
+         - AssociatePublicIpAddress: "true"
+           DeleteOnTermination: "true"
+           DeviceIndex: "0"
+           SubnetId: !Ref PublicSubnetB
+           GroupSet: 
+           -  !Ref WebAppSecurityGroup
       BlockDeviceMappings:
         - DeviceName: /dev/sdc
           Ebs:
             VolumeSize: 50
             VolumeType: gp2
             DeleteOnTermination: true
+      UserData:
+          Fn::Base64:
+            !Sub |
+              #!/bin/bash
+              echo export DB_HOST="${MyDBInstance.Endpoint.Address}" >> /etc/environment
+              echo export DB_USER="csye6225" >> /etc/environment
+              echo export DB_PASSWORD="csye6225SFall2022" >> /etc/environment
+              echo export DB_NAME="csye6225" >> /etc/environment
+              echo export AWS_REGION="us-east-1" >> /etc/environment
+              echo export DB="csye6225" >> /etc/environment
+              sleep 20
+              source /etc/environment
+              rm -rf node_modules
+              sudo npm i
+              sudo pm2 restart all --update-env
+
+
+  IAMRole:
+    Type: 'AWS::IAM::Role' 
+    Properties:
+      RoleName: EC2-CSYE6225
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+  IAMInstanceProfile: 
+    Type: 'AWS::IAM::InstanceProfile'
+    Properties: 
+      Path: /
+      Roles: 
+        - Ref: IAMRole
+
+
 
   WebAppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupName: !Join ["-", [webapp-security-group, dev]]
       GroupDescription: "Allow HTTP/HTTPS and SSH inbound and outbound traffic"
+      VpcId:
+          Ref: VPC
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: 80
@@ -226,14 +301,6 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 3200
-          ToPort: 3200
-          CidrIp: 0.0.0.0/0
-        - IpProtocol: tcp
-          FromPort: 6969
-          ToPort: 6969
-          CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
         Value: ApplicationSecurityGroup
@@ -244,12 +311,17 @@ Resources:
       Type : AWS::RDS::DBSubnetGroup
       Properties:
         DBSubnetGroupDescription: private subnet group for RDS
+        DBSubnetGroupName: RDS Subnet Group
         SubnetIds:
           - !Ref PrivateSubnet1
           - !Ref PrivateSubnet2
           - !Ref PrivateSubnet3
 
   DatabaseSecurityGroupFinal:
+    DependsOn:
+      - PrivateSubnet1
+      - PrivateSubnet2
+      - PrivateSubnet3
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: "postgresDatabase to delete"
@@ -267,18 +339,42 @@ Resources:
 
   MyDBInstance:
     Type: "AWS::RDS::DBInstance"
+    DeletionPolicy: Delete
     Properties:
+      DBInstanceIdentifier: csye6225
       AllocatedStorage: 20
       DBInstanceClass: db.t3.micro
+      PubliclyAccessible: false
+      Port: 5432
       DBName: csye6225
       Engine: postgres
-      # EngineVersion:
       MasterUsername: csye6225
       MasterUserPassword: adminPratik1234
       StorageType: gp2
       VPCSecurityGroups: 
         - Ref: DatabaseSecurityGroupFinal
-      DBSubnetGroupName: !Ref RDSPrivateSubnetGroup
+      DBSubnetGroupName: 
+        Ref: RDSPrivateSubnetGroup
       Tags:
         - Key: Name
           Value: Rds-Postgres-Instance
+
+
+  #S3 Bucket creation
+  S3bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+      LifecycleConfiguration:
+        Rules:
+          - Id: Rule for S3 bucket
+            Prefix: S3 Documents
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
