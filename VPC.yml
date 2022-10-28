@@ -1,8 +1,4 @@
 # This CloudFormation template deploys a basic VPC / Network.
-
-#SET AWS_ACCESS_KEY_ID= "AKIAR4XI65Y3OAGJSUFC"
-#SET AWS_SECRET_ACCESS_KEY= "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"
-
 Parameters:
 
   SubnetCidrBlocks: 
@@ -227,7 +223,7 @@ Resources:
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-06c452d86f1777f5a
+      ImageId: ami-0aac63a577ba3b6cd
       InstanceType: t2.micro
       NetworkInterfaces:
          - AssociatePublicIpAddress: "true"
@@ -242,15 +238,18 @@ Resources:
             VolumeSize: 50
             VolumeType: gp2
             DeleteOnTermination: true
+      IamInstanceProfile: !Ref IAMInstanceProfile
       UserData:
           Fn::Base64:
             !Sub |
               #!/bin/bash
-              echo export DB_HOST="${MyDBInstance.Endpoint.Address}" >> /etc/environment
-              echo export DB_USER="csye6225" >> /etc/environment
-              echo export DB_PASSWORD="csye6225SFall2022" >> /etc/environment
-              echo export DB_NAME="csye6225" >> /etc/environment
-              echo export AWS_REGION="us-east-1" >> /etc/environment
+              echo export PGHOST="${MyDBInstance.Endpoint.Address}" >> /etc/environment
+              echo export PORT="80" >> /etc/environment"
+              echo export PGUSER="csye6225" >> /etc/environment
+              echo export PGPASSWORD="csye6225SFall2022" >> /etc/environment
+              echo export PGDATABASE="csye6225" >> /etc/environment
+              echo export S3BUCKET="${S3bucket}" >> /etc/environment
+              echo export AWS_REGION="us-west-2" >> /etc/environment
               echo export DB="csye6225" >> /etc/environment
               sleep 20
               source /etc/environment
@@ -272,12 +271,32 @@ Resources:
             Action:
               - 'sts:AssumeRole'
       Path: /
+
+
   IAMInstanceProfile: 
     Type: 'AWS::IAM::InstanceProfile'
     Properties: 
       Path: /
       Roles: 
         - Ref: IAMRole
+  
+  WebAppS3Policy:
+    Type: 'AWS::IAM::Policy'
+    Properties:
+        PolicyName: WebAppS3
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: Allow
+            Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:DeleteObject'
+            Resource: 
+              -  !Sub arn:aws:s3:::${S3bucket}
+              -  !Sub arn:aws:s3:::${S3bucket}/*
+        Roles: 
+          - !Ref IAMRole
 
 
 
