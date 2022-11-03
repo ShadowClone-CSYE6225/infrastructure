@@ -5,6 +5,30 @@ Parameters:
     Description: "List of CIDR blocks"
     Type: CommaDelimitedList
     Default: "10.0.1.0/24, 10.0.2.0/24, 10.0.3.0/24, 10.0.4.0/24, 10.0.5.0/24, 10.0.6.0/24"
+  
+  KeyName:
+    Description: "Key Pair "
+    Type: String
+    Default: testKey
+  
+  PGUSER:
+    Description: "Postgres username"
+    Type: String
+    Default: csye6225
+
+  PGPASSWORD:
+    Description: "Postgres password"
+    Type: String
+    Default: adminPratik1234
+  
+  PGDATABASE:
+    Description: "Postgres database"
+    Type: String
+    Default: csye6225
+
+  amiImageId:
+    Description: "AMI image id"
+    Type: String
 
 
   NumberOfAZs:
@@ -189,6 +213,8 @@ Resources:
     Properties:
       SubnetId: !Ref PublicSubnetB
       RouteTableId: !Ref PublicRouteTable
+
+
   # Attach the public subnets to public route tables,
   # and attach the private subnets to private route tables:   
   PublicSubnetCRouteTableAssociation:
@@ -223,8 +249,9 @@ Resources:
   WebAppInstance:
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-0aac63a577ba3b6cd
+      ImageId: !Ref amiImageId  
       InstanceType: t2.micro
+      KeyName: !Ref KeyName
       NetworkInterfaces:
          - AssociatePublicIpAddress: "true"
            DeleteOnTermination: "true"
@@ -243,19 +270,25 @@ Resources:
           Fn::Base64:
             !Sub |
               #!/bin/bash
-              echo export PGHOST="${MyDBInstance.Endpoint.Address}" >> /etc/environment
-              echo export PORT="80" >> /etc/environment"
-              echo export PGUSER="csye6225" >> /etc/environment
-              echo export PGPASSWORD="csye6225SFall2022" >> /etc/environment
-              echo export PGDATABASE="csye6225" >> /etc/environment
-              echo export S3BUCKET="${S3bucket}" >> /etc/environment
-              echo export AWS_REGION="us-west-2" >> /etc/environment
-              echo export DB="csye6225" >> /etc/environment
+               echo export PGHOST=\'${MyDBInstance.Endpoint.Address}\' >> /etc/profile
+               echo export PORT=6969 >> /etc/profile
+               echo export PGUSER=\'${PGUSER}\' >> /etc/profile
+               echo export PGPASSWORD=\'${PGPASSWORD}\' >> /etc/profile
+               echo export PGDATABASE=\'${PGDATABASE}\' >> /etc/profile
+               echo export S3BUCKET=\'${S3bucket}\' >> /etc/profile
+               echo export AWS_REGION=\'us-east-2\' >> /etc/profile
               sleep 20
-              source /etc/environment
+              source /etc/profile
+              cd /home/ubuntu/Application/webapp
               rm -rf node_modules
-              sudo npm i
-              sudo pm2 restart all --update-env
+              sudo npm install
+              source /etc/profile
+              pm2 start ./Models/document.js
+              pm2 start ./Models/user.js
+              pm2 start index.js --update-env
+              pm2 startup systemd
+              pm2 save
+              pm2 list
 
 
   IAMRole:
@@ -292,9 +325,10 @@ Resources:
               - 's3:GetObject'
               - 's3:PutObject'
               - 's3:DeleteObject'
+              - 's3:ListBucket'
             Resource: 
-              -  !Sub arn:aws:s3:::${S3bucket}
-              -  !Sub arn:aws:s3:::${S3bucket}/*
+              -  !Join ["",["arn:aws:s3:::", !Ref S3bucket]]
+              -  !Join ["",["arn:aws:s3:::", !Ref S3bucket,"/*"]]
         Roles: 
           - !Ref IAMRole
 
@@ -319,6 +353,14 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 6969
+          ToPort: 6969
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 3200
+          ToPort: 3200
           CidrIp: 0.0.0.0/0
       Tags:
       - Key: Name
@@ -365,10 +407,10 @@ Resources:
       DBInstanceClass: db.t3.micro
       PubliclyAccessible: false
       Port: 5432
-      DBName: csye6225
+      DBName: !Ref PGDATABASE
       Engine: postgres
-      MasterUsername: csye6225
-      MasterUserPassword: adminPratik1234
+      MasterUsername: !Ref PGUSER
+      MasterUserPassword: !Ref PGPASSWORD
       StorageType: gp2
       VPCSecurityGroups: 
         - Ref: DatabaseSecurityGroupFinal
@@ -397,3 +439,14 @@ Resources:
             Transitions:
               - TransitionInDays: 30
                 StorageClass: STANDARD_IA
+  
+
+  DNSHost:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: dev.pratiktalreja.me.
+      Name: dev.pratiktalreja.me.
+      Type: A
+      TTL: 900
+      ResourceRecords:
+      - !GetAtt WebAppInstance.PublicIp
