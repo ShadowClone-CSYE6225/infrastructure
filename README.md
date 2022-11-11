@@ -23,7 +23,7 @@ This will give you all the details of the stack.
 
 To pass parameters to your command, run below command:
 ````
-aws --profile=dev cloudformation create-stack --stack-name YourStackName --template-body file://VPC.yml --parameters ParameterKey=amiImageId,ParameterValue=ami-049798eca1d0ee2d5 --capabilities CAPABILITY_NAMED_IAM 
+aws --profile=demo cloudformation create-stack --stack-name YourStackName --template-body file://VPC.yml --parameters ParameterKey=amiImageId,ParameterValue=ami-0f8e38859026b8f7b --capabilities CAPABILITY_NAMED_IAM 
 ````
 
 To delete the stack, run below command.

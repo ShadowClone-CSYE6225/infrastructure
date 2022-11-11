@@ -444,9 +444,35 @@ Resources:
   DNSHost:
     Type: AWS::Route53::RecordSet
     Properties:
-      HostedZoneName: dev.pratiktalreja.me.
-      Name: dev.pratiktalreja.me.
+      HostedZoneName: prod.pratiktalreja.me.
+      Name: prod.pratiktalreja.me.
       Type: A
       TTL: 900
       ResourceRecords:
       - !GetAtt WebAppInstance.PublicIp
+  
+
+  CloudWatchAgentPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "EC2CloudWatchPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'cloudwatch:PutMetricData'
+              - 'ec2:DescribeTags'
+              - 'logs:PutLogEvents'
+              - 'logs:DescribeLogStreams'
+              - 'logs:DescribeLogGroups'
+              - 'logs:CreateLogStream'
+              - 'logs:CreateLogGroup'
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - 'ssm:GetParameter'
+              - 'ssm:PutParameter'
+            Resource: "arn:aws:ssm:*:*:parameter/AmazonCloudWatch-*"
+      Roles:
+        - Ref: IAMRole
