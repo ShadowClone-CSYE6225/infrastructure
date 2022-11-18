@@ -581,6 +581,7 @@ Resources:
         - arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
         - arn:aws:iam::aws:policy/AmazonS3FullAccess 
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        
 
 
   DynamodbTablePolicy:
@@ -591,7 +592,7 @@ Resources:
           AttributeName: "Email"
           AttributeType: "S"
         - 
-          AttributeName: "Token"
+          AttributeName: "TokenName"
           AttributeType: "S"
       KeySchema:
         - 
