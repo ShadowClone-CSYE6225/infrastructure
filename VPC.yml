@@ -246,49 +246,49 @@ Resources:
         Ref: PrivateSubnet3
       RouteTableId: !Ref PrivateRouteTable
   
-  WebAppInstance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !Ref amiImageId  
-      InstanceType: t2.micro
-      KeyName: !Ref KeyName
-      NetworkInterfaces:
-         - AssociatePublicIpAddress: "true"
-           DeleteOnTermination: "true"
-           DeviceIndex: "0"
-           SubnetId: !Ref PublicSubnetB
-           GroupSet: 
-           -  !Ref WebAppSecurityGroup
-      BlockDeviceMappings:
-        - DeviceName: /dev/sdc
-          Ebs:
-            VolumeSize: 50
-            VolumeType: gp2
-            DeleteOnTermination: true
-      IamInstanceProfile: !Ref IAMInstanceProfile
-      UserData:
-          Fn::Base64:
-            !Sub |
-              #!/bin/bash
-               echo export PGHOST=\'${MyDBInstance.Endpoint.Address}\' >> /etc/profile
-               echo export PORT=6969 >> /etc/profile
-               echo export PGUSER=\'${PGUSER}\' >> /etc/profile
-               echo export PGPASSWORD=\'${PGPASSWORD}\' >> /etc/profile
-               echo export PGDATABASE=\'${PGDATABASE}\' >> /etc/profile
-               echo export S3BUCKET=\'${S3bucket}\' >> /etc/profile
-               echo export AWS_REGION=\'us-east-2\' >> /etc/profile
-              sleep 20
-              source /etc/profile
-              cd /home/ubuntu/Application/webapp
-              rm -rf node_modules
-              sudo npm install
-              source /etc/profile
-              pm2 start ./Models/document.js
-              pm2 start ./Models/user.js
-              pm2 start index.js --update-env
-              pm2 startup systemd
-              pm2 save
-              pm2 list
+  # WebAppInstance:
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId: !Ref amiImageId  
+  #     InstanceType: t2.micro
+  #     KeyName: !Ref KeyName
+  #     NetworkInterfaces:
+  #        - AssociatePublicIpAddress: "true"
+  #          DeleteOnTermination: "true"
+  #          DeviceIndex: "0"
+  #          SubnetId: !Ref PublicSubnetB
+  #          GroupSet: 
+  #          -  !Ref WebAppSecurityGroup
+  #     BlockDeviceMappings:
+  #       - DeviceName: /dev/sdc
+  #         Ebs:
+  #           VolumeSize: 50
+  #           VolumeType: gp2
+  #           DeleteOnTermination: true
+  #     IamInstanceProfile: !Ref IAMInstanceProfile
+  #     UserData:
+  #         Fn::Base64:
+  #           !Sub |
+  #             #!/bin/bash
+  #              echo export PGHOST=\'${MyDBInstance.Endpoint.Address}\' >> /etc/profile
+  #              echo export PORT=6969 >> /etc/profile
+  #              echo export PGUSER=\'${PGUSER}\' >> /etc/profile
+  #              echo export PGPASSWORD=\'${PGPASSWORD}\' >> /etc/profile
+  #              echo export PGDATABASE=\'${PGDATABASE}\' >> /etc/profile
+  #              echo export S3BUCKET=\'${S3bucket}\' >> /etc/profile
+  #              echo export AWS_REGION=\'us-east-1\' >> /etc/profile
+  #             sleep 20
+  #             source /etc/profile
+  #             cd /home/ubuntu/Application/webapp
+  #             rm -rf node_modules
+  #             sudo npm install
+  #             source /etc/profile
+  #             pm2 start ./Models/document.js
+  #             pm2 start ./Models/user.js
+  #             pm2 start index.js --update-env
+  #             pm2 startup systemd
+  #             pm2 save
+  #             pm2 list
 
 
   IAMRole:
@@ -353,15 +353,15 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
         - IpProtocol: tcp
           FromPort: 6969
           ToPort: 6969
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
         - IpProtocol: tcp
           FromPort: 3200
           ToPort: 3200
-          CidrIp: 0.0.0.0/0
+          SourceSecurityGroupId: !GetAtt LoadBalancerSecurityGroup.GroupId
       Tags:
       - Key: Name
         Value: ApplicationSecurityGroup
@@ -412,6 +412,8 @@ Resources:
       MasterUsername: !Ref PGUSER
       MasterUserPassword: !Ref PGPASSWORD
       StorageType: gp2
+      StorageEncrypted: true
+      KmsKeyId: !GetAtt RdsKmsKey.Arn
       VPCSecurityGroups: 
         - Ref: DatabaseSecurityGroupFinal
       DBSubnetGroupName: 
@@ -431,6 +433,12 @@ Resources:
           - ServerSideEncryptionByDefault:
               SSEAlgorithm: AES256
 
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
       LifecycleConfiguration:
         Rules:
           - Id: Rule for S3 bucket
@@ -441,15 +449,15 @@ Resources:
                 StorageClass: STANDARD_IA
   
 
-  DNSHost:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneName: dev.pratiktalreja.me.
-      Name: dev.pratiktalreja.me.
-      Type: A
-      TTL: 900
-      ResourceRecords:
-      - !GetAtt WebAppInstance.PublicIp
+  # DNSHost:
+  #   Type: AWS::Route53::RecordSet
+  #   Properties:
+  #     HostedZoneName: prod.pratiktalreja.me.
+  #     Name: prod.pratiktalreja.me.
+  #     Type: A
+  #     TTL: 900
+  #     ResourceRecords:
+  #     - !GetAtt WebAppInstance.PublicIp
   
 
   CloudWatchAgentPolicy:
@@ -599,7 +607,7 @@ Resources:
           AttributeName: "Email"
           KeyType: "HASH"
         -
-          AttributeName: "Token"
+          AttributeName: "TokenName"
           KeyType: "RANGE"
       ProvisionedThroughput: 
         ReadCapacityUnits: 10
@@ -644,3 +652,346 @@ Resources:
               - !GetAtt DynamodbTablePolicy.Arn
       Roles:
         - !Ref IAMRole
+
+
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+        GroupDescription: load balancer security group
+        GroupName: load balancer
+        VpcId:
+          Ref: VPC
+        SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: "::/0"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: "0.0.0.0/0"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIpv6: "::/0"
+
+
+  RdsKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS Key for RDS'
+      KeyPolicy:
+        Id: "kms-key-for-rds"
+        Version: '2012-10-17'
+        Statement:
+          - Sid: KMS key policy for user permissions
+            Effect: Allow
+            Principal:
+              AWS: !Join
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':root'
+            Action: kms:*
+            Resource: '*'
+          - Sid: Allow access
+            Effect: Allow
+            Principal:
+              AWS: !Join
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS'
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: !Join
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS'
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: Allow attachment of persistent resources
+            Effect: Allow
+            Principal:
+              AWS: !Join
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':role/aws-service-role/rds.amazonaws.com/AWSServiceRoleForRDS'
+            Action:
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+       
+            Resource: '*'
+          
+
+  RDSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/rdsKey
+      TargetKeyId:
+        Ref: RdsKmsKey
+
+
+  
+  
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: TemplateForEC2
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt
+            - IAMInstanceProfile
+            - Arn
+        ImageId: !Ref amiImageId
+        InstanceType: t2.micro
+        KeyName: !Ref KeyName
+        SecurityGroupIds:
+          - !Ref WebAppSecurityGroup
+        BlockDeviceMappings:
+          - DeviceName: "/dev/sdm"
+            Ebs:
+              VolumeSize: 20
+              VolumeType: "gp2"
+              DeleteOnTermination: true
+              Encrypted: true
+              KmsKeyId: !GetAtt EBSKmsKey.Arn
+        UserData:
+          Fn::Base64:
+            !Sub |
+             #!/bin/bash
+               echo export PGHOST=\'${MyDBInstance.Endpoint.Address}\' >> /etc/profile
+               echo export PORT=6969 >> /etc/profile
+               echo export PGUSER=\'${PGUSER}\' >> /etc/profile
+               echo export PGPASSWORD=\'${PGPASSWORD}\' >> /etc/profile
+               echo export PGDATABASE=\'${PGDATABASE}\' >> /etc/profile
+               echo export S3BUCKET=\'${S3bucket}\' >> /etc/profile
+               echo export AWS_REGION=\'us-east-1\' >> /etc/profile
+              sleep 20
+              source /etc/profile
+              cd /home/ubuntu/Application/webapp
+              rm -rf node_modules
+              sudo npm install
+              source /etc/profile
+              pm2 start ./Models/document.js
+              pm2 start ./Models/user.js
+              pm2 start index.js --update-env
+              pm2 startup systemd
+              pm2 save
+              pm2 list
+
+  EBSKmsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: 'KMS Key for EBS'
+      KeyPolicy:
+        Id: "kms-key-for-ebs"
+        Version: '2012-10-17'
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Join ["",["arn:aws:iam::",!Ref "AWS::AccountId",":root"],]
+                - !Join ["",["arn:aws:iam::",!Ref "AWS::AccountId",":role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",],]
+            Action: kms:*
+            Resource: '*'
+          - Sid: Allow access for Key Administrators
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Join ["",["arn:aws:iam::",!Ref "AWS::AccountId",":role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",],]
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:TagResource
+              - kms:UntagResource
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          - Sid: Allow use of the key
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Join ["",["arn:aws:iam::",!Ref "AWS::AccountId",":role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",],]
+            Action:
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey*
+              - kms:DescribeKey
+            Resource: '*'
+          - Sid: Allow attachment of persistent resources
+            Effect: Allow
+            Principal:
+              AWS: 
+                - !Join ["",["arn:aws:iam::",!Ref "AWS::AccountId",":role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling",],]
+            Action:
+              - kms:CreateGrant
+              - kms:ListGrants
+              - kms:RevokeGrant
+            Resource: '*'
+
+  
+  AutoscalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: '1'
+      MaxSize: '3'
+      DesiredCapacity: '1'
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+      - !Ref PublicSubnetA
+      - !Ref PublicSubnetB
+      - !Ref PublicSubnetC
+      TargetGroupARNs:
+      - !Ref TargetGroup
+      Cooldown: 60
+      Tags:
+        - Key: Name
+          Value: ASGForEC2
+          PropagateAtLaunch: "true"
+  
+  LoadBalancer:
+    DependsOn: AttachGateway
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      IpAddressType: ipv4
+      Name: AppLoadBalancer
+      Scheme: internet-facing
+      Type: application
+      Subnets:
+      - !Ref PublicSubnetA
+      - !Ref PublicSubnetB
+      - !Ref PublicSubnetC
+      SecurityGroups: 
+      - !Ref LoadBalancerSecurityGroup
+
+
+  CPUAlarmHigh:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '50'
+      AlarmDescription: Alarm if CPU utilization more than 50%
+      Period: '300'
+      AlarmActions:
+      - !Ref ScaleOutPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref AutoscalingGroup
+      ComparisonOperator: GreaterThanThreshold
+      MetricName: CPUUtilization
+  CPUAlarmLow:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      EvaluationPeriods: '1'
+      Statistic: Average
+      Threshold: '15'
+      AlarmDescription: Alarm if CPU utilization is less than 15%
+      Period: '300'
+      AlarmActions:
+      - !Ref ScaleInPolicy
+      Namespace: AWS/EC2
+      Dimensions:
+      - Name: AutoScalingGroupName
+        Value: !Ref AutoscalingGroup
+      ComparisonOperator: LessThanThreshold
+      MetricName: CPUUtilization
+
+  ScaleOutPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoscalingGroup
+      Cooldown: 60
+      ScalingAdjustment: 1
+  ScaleInPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AdjustmentType: ChangeInCapacity
+      AutoScalingGroupName: !Ref AutoscalingGroup
+      Cooldown: 60
+      ScalingAdjustment: -1
+  
+  TargetGroup:
+    DependsOn: LoadBalancer
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 30
+      HealthCheckPath: /healthz
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 5
+      HealthCheckPort: 6969
+      HealthCheckProtocol: HTTP
+      Name: AppLBTargetGroup
+      Port: 6969
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref VPC
+  
+  LoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: arn:aws:acm:us-east-1:272113043580:certificate/5e9606c5-b4e3-4ece-9fdb-5835716ce226
+
+  DNSRecord:  
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneName: "prod.pratiktalreja.me."
+      Comment: Zone apex alias targeted to LoadBalancer.
+      RecordSets:
+      - Name: "prod.pratiktalreja.me."
+        Type: A
+        AliasTarget:
+          HostedZoneId: !GetAtt 'LoadBalancer.CanonicalHostedZoneID'
+          DNSName: !GetAtt 'LoadBalancer.DNSName'
+
