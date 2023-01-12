@@ -981,7 +981,7 @@ Resources:
       Port: 443
       Protocol: HTTPS
       Certificates:
-        - CertificateArn: arn:aws:acm:us-east-1:272113043580:certificate/5e9606c5-b4e3-4ece-9fdb-5835716ce226
+        - CertificateArn: Your_Certificate_ARN
 
   DNSRecord:  
     Type: AWS::Route53::RecordSetGroup
